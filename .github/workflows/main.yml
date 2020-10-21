@@ -3,22 +3,44 @@ on:
     branches:
       - master
 jobs:
+  
   build:
-    name: Build, push, and deploy
+    name: build
     runs-on: ubuntu-latest
     steps:
     - name: Checkout master
       uses: actions/checkout@master
     - name: Update SHA
       run: echo $GITHUB_SHA > $GITHUB_WORKSPACE/site/_meta
-
     - name: Build container image
       run: docker build -t andrewsomething/static-example:$(echo $GITHUB_SHA | head -c7) .
-
-    - name: Install doctl
-      uses: digitalocean/action-doctl@v2
+  
+  test:
+   name: test
+   runs-on: ubuntu-latest
+   steps: 
+    - uses: actions/checkout@v2
+    - name: run test
+      run: |
+          if [ -f docker-compose.test.yml ]; then
+            docker-compose --file docker-compose.test.yml build
+            docker-compose --file docker-compose.test.yml run sut
+          else
+            docker build . --file Dockerfile
+          fi
+          
+  push and deploy:
+   name: push and deploy
+   needs: test
+   runs-on: ubuntu latest
+    - name: Set up kubectl
+      uses: matootie/dokube@v1.3.2
       with:
-        token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+        personalAccessToken: ${{ secrets.DIGITALOCEAN_TOKEN }}
+        clusterName: quimedo-cluster
+
+    - name: Get nodes
+      run: kubectl get nodes
 
     - name: Log in to DigitalOcean Container Registry with short-lived credentials
       run: doctl registry login --expiry-seconds 600
